@@ -1,169 +1,164 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import requests
-import os
+import threading
 import webbrowser
+import os
 
-# --- Configurações ---
-# ATENÇÃO: Altere para o IP da máquina onde o servidor está rodando!
-SERVER_URL = "http://192.168.1.79:5000"
+SERVER_URL = "http://127.0.0.1:5000"  # Mude se o servidor estiver em outro IP
 
 
-class VideoClientApp:
+class ClientApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Cliente de Processamento de Vídeo")
-        self.root.geometry("800x600")
+        self.root.geometry("900x600")
+        self.selected_filepath = None
 
-        self.filepath = None
-        self.video_history = []
+        # --- Frames ---
+        upload_frame = ttk.LabelFrame(root, text="1. Enviar Novo Vídeo", padding=10)
+        upload_frame.pack(fill=tk.X, padx=10, pady=5)
 
-        # --- Frame Principal ---
-        main_frame = ttk.Frame(root, padding="10")
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        history_frame = ttk.LabelFrame(root, text="2. Histórico de Vídeos", padding=10)
+        history_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
         # --- Seção de Upload ---
-        upload_frame = ttk.LabelFrame(main_frame, text="Enviar Novo Vídeo", padding="10")
-        upload_frame.pack(fill=tk.X, pady=5)
+        self.select_btn = ttk.Button(upload_frame, text="Selecionar Arquivo...", command=self.select_file)
+        self.select_btn.grid(row=0, column=0, padx=5, pady=5)
 
-        self.select_button = ttk.Button(upload_frame, text="Selecionar Vídeo", command=self.select_file)
-        self.select_button.pack(side=tk.LEFT, padx=5)
+        self.file_label = ttk.Label(upload_frame, text="Nenhum arquivo selecionado")
+        self.file_label.grid(row=0, column=1, sticky="ew", padx=5)
 
-        self.selected_file_label = ttk.Label(upload_frame, text="Nenhum arquivo selecionado")
-        self.selected_file_label.pack(side=tk.LEFT, padx=5, expand=True, fill=tk.X)
-
+        ttk.Label(upload_frame, text="Filtro:").grid(row=0, column=2, padx=5)
         self.filter_var = tk.StringVar(value='grayscale')
-        self.filter_menu = ttk.OptionMenu(upload_frame, self.filter_var, 'grayscale', 'grayscale', 'pixelate',
-                                          'edge_detection')
-        self.filter_menu.pack(side=tk.LEFT, padx=5)
+        self.filter_combo = ttk.Combobox(upload_frame, textvariable=self.filter_var,
+                                         values=['grayscale', 'pixelate', 'canny_edges'])
+        self.filter_combo.grid(row=0, column=3, padx=5)
 
-        self.upload_button = ttk.Button(upload_frame, text="Enviar", command=self.upload_video)
-        self.upload_button.pack(side=tk.LEFT, padx=5)
-        self.upload_button['state'] = 'disabled'
+        self.upload_btn = ttk.Button(upload_frame, text="Enviar Vídeo", command=self.start_upload_thread,
+                                     state="disabled")
+        self.upload_btn.grid(row=0, column=4, padx=5)
+
+        upload_frame.grid_columnconfigure(1, weight=1)
+        self.progress = ttk.Progressbar(upload_frame, orient="horizontal", mode="determinate")
+        self.progress.grid(row=1, column=0, columnspan=5, sticky="ew", padx=5, pady=5)
+
         # --- Seção de Histórico ---
-        history_frame = ttk.LabelFrame(main_frame, text="Histórico de Vídeos", padding="10")
-        history_frame.pack(fill=tk.BOTH, expand=True, pady=5)
-
-        cols = ('Nome Original', 'Filtro', 'Data')
+        cols = ('Nome Original', 'Filtro', 'Data', 'Duração (s)')
         self.history_tree = ttk.Treeview(history_frame, columns=cols, show='headings')
         for col in cols:
             self.history_tree.heading(col, text=col)
-        # NÃO FAÇA O .pack() AQUI AINDA
-
-        # Scrollbar
-        scrollbar = ttk.Scrollbar(history_frame, orient=tk.VERTICAL, command=self.history_tree.yview)
-        self.history_tree.configure(yscroll=scrollbar.set)
-        # NÃO FAÇA O .pack() AQUI AINDA
-
-        # Botões de ação do histórico
-        action_frame = ttk.Frame(history_frame)
-        # NÃO FAÇA O .pack() AQUI AINDA
-
-        ttk.Button(action_frame, text="Ver Original", command=lambda: self.play_video('original')).pack(pady=5)
-        ttk.Button(action_frame, text="Ver Processado", command=lambda: self.play_video('processed')).pack(pady=5)
-        ttk.Button(action_frame, text="Atualizar Histórico", command=self.refresh_history).pack(pady=20)
-
-        # --- ORDEM DE EMPACOTAMENTO CORRIGIDA ---
-
-        # 1. Empacota a barra de rolagem à direita
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-        # 2. Empacota a frame de botões à esquerda
-        action_frame.pack(side=tk.LEFT, fill=tk.Y, padx=10)
-
-        # 3. Empacota o Treeview por último para que ele ocupe todo o espaço restante
         self.history_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        # --- Inicialização ---
+        scrollbar = ttk.Scrollbar(history_frame, orient=tk.VERTICAL, command=self.history_tree.yview)
+        self.history_tree.configure(yscroll=scrollbar.set)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        action_frame = ttk.Frame(history_frame)
+        action_frame.pack(side=tk.LEFT, fill=tk.Y, padx=10)
+
+        ttk.Button(action_frame, text="Ver Original", command=lambda: self.view_video('original')).pack(pady=5)
+        ttk.Button(action_frame, text="Ver Processado", command=lambda: self.view_video('processed')).pack(pady=5)
+        ttk.Button(action_frame, text="Atualizar Histórico", command=self.refresh_history).pack(pady=20)
+
+        # Armazenar dados completos dos vídeos
+        self.video_data = {}
+
         self.refresh_history()
 
     def select_file(self):
-        self.filepath = filedialog.askopenfilename(
-            title="Selecione um arquivo de vídeo",
-            filetypes=(("Arquivos de Vídeo", "*.mp4 *.avi *.mov *.mkv"), ("Todos os arquivos", "*.*"))
-        )
-        if self.filepath:
-            self.selected_file_label.config(text=os.path.basename(self.filepath))
-            self.upload_button['state'] = 'normal'
+        self.selected_filepath = filedialog.askopenfilename(filetypes=[("Video Files", "*.mp4 *.avi *.mov")])
+        if self.selected_filepath:
+            self.file_label.config(text=os.path.basename(self.selected_filepath))
+            self.upload_btn.config(state="normal")
         else:
-            self.selected_file_label.config(text="Nenhum arquivo selecionado")
-            self.upload_button['state'] = 'disabled'
+            self.file_label.config(text="Nenhum arquivo selecionado")
+            self.upload_btn.config(state="disabled")
+
+    def start_upload_thread(self):
+        self.progress.start(10)  # Modo indeterminado
+        self.upload_btn.config(state="disabled")
+        self.select_btn.config(state="disabled")
+
+        upload_thread = threading.Thread(target=self.upload_video, daemon=True)
+        upload_thread.start()
 
     def upload_video(self):
-        if not self.filepath:
-            messagebox.showerror("Erro", "Nenhum arquivo selecionado para upload.")
+        if not self.selected_filepath:
+            messagebox.showerror("Erro", "Nenhum arquivo selecionado.")
             return
 
         url = f"{SERVER_URL}/upload"
         filter_choice = self.filter_var.get()
 
         try:
-            with open(self.filepath, 'rb') as f:
-                files = {'file': (os.path.basename(self.filepath), f)}
+            with open(self.selected_filepath, 'rb') as f:
+                files = {'video': (os.path.basename(self.selected_filepath), f)}
                 data = {'filter': filter_choice}
-
-                # Exibe uma mensagem de "enviando"
-                self.selected_file_label.config(text=f"Enviando para o servidor...")
-                self.root.update_idletasks()
-
                 response = requests.post(url, files=files, data=data, timeout=300)  # Timeout de 5 minutos
 
-                if response.status_code == 201:
-                    messagebox.showinfo("Sucesso", "Vídeo enviado e processado com sucesso!")
-                    self.refresh_history()
-                else:
-                    messagebox.showerror("Erro no Servidor",
-                                         f"Erro: {response.status_code}\n{response.json().get('error', '')}")
+            if response.status_code == 201:
+                messagebox.showinfo("Sucesso", "Vídeo enviado e processado com sucesso!")
+                self.refresh_history()
+            else:
+                messagebox.showerror("Erro no Servidor",
+                                     f"Erro: {response.status_code}\n{response.json().get('error', '')}")
+
         except requests.exceptions.RequestException as e:
             messagebox.showerror("Erro de Conexão", f"Não foi possível conectar ao servidor: {e}")
         finally:
-            self.selected_file_label.config(text="Selecione um novo arquivo")
-            self.filepath = None
-            self.upload_button['state'] = 'disabled'
+            self.progress.stop()
+            self.progress['value'] = 0
+            self.upload_btn.config(state="normal")
+            self.select_btn.config(state="normal")
 
     def refresh_history(self):
         try:
-            response = requests.get(f"{SERVER_URL}/videos")
+            response = requests.get(f"{SERVER_URL}/history")
             if response.status_code == 200:
-                self.video_history = response.json()
-                self.update_history_tree()
+                history_data = response.json()
+                self.history_tree.delete(*self.history_tree.get_children())
+                self.video_data.clear()
+
+                for item in history_data:
+                    video_id = item['id']
+                    self.video_data[video_id] = item  # Armazena dados completos
+
+                    display_data = (
+                        item['original_name'] + item['original_ext'],
+                        item['filter'],
+                        item['created_at'][:16].replace('T', ' '),
+                        f"{item['duration_sec']:.2f}"
+                    )
+                    self.history_tree.insert('', tk.END, iid=video_id, values=display_data)
             else:
                 messagebox.showwarning("Aviso", "Não foi possível carregar o histórico do servidor.")
         except requests.exceptions.RequestException:
             messagebox.showwarning("Aviso", "Servidor offline. Não foi possível carregar o histórico.")
 
-    def update_history_tree(self):
-        # Limpa a árvore
-        for i in self.history_tree.get_children():
-            self.history_tree.delete(i)
-        # Preenche com novos dados
-        for video in self.video_history:
-            self.history_tree.insert("", "end", iid=video['id'], values=(
-                video['original_name'],
-                video['filter'],
-                video['created_at'][:19].replace('T', ' ')
-            ))
-
-    def play_video(self, video_type):
-        selected_item = self.history_tree.focus()
-        if not selected_item:
-            messagebox.showwarning("Atenção", "Selecione um vídeo na lista primeiro.")
+    def view_video(self, video_type):
+        selected_items = self.history_tree.selection()
+        if not selected_items:
+            messagebox.showwarning("Aviso", "Selecione um vídeo no histórico.")
             return
 
-        video_id = selected_item
-        video_data = next((v for v in self.video_history if v['id'] == video_id), None)
+        video_id = selected_items[0]
+        video_info = self.video_data.get(video_id)
 
-        if video_data:
-            if video_type == 'original':
-                path = video_data['path_original']
-            else:
-                path = video_data['path_processed']
+        if video_type == 'original':
+            path_key = 'path_original'
+        else:
+            path_key = 'path_processed'
 
-            video_url = f"{SERVER_URL}/media/{path}"
-            webbrowser.open(video_url)
+        video_path = video_info.get(path_key)
+        if video_path:
+            url = f"{SERVER_URL}/media/{video_path}"
+            webbrowser.open(url)
+        else:
+            messagebox.showerror("Erro", "Caminho do vídeo não encontrado.")
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     root = tk.Tk()
-    app = VideoClientApp(root)
+    app = ClientApp(root)
     root.mainloop()
