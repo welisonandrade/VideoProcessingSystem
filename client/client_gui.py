@@ -6,7 +6,7 @@ import webbrowser
 
 # --- Configurações ---
 # ATENÇÃO: Altere para o IP da máquina onde o servidor está rodando!
-SERVER_URL = "http://127.0.0.1:5000"
+SERVER_URL = "http://192.168.1.79:5000"
 
 
 class VideoClientApp:
@@ -40,7 +40,6 @@ class VideoClientApp:
         self.upload_button = ttk.Button(upload_frame, text="Enviar", command=self.upload_video)
         self.upload_button.pack(side=tk.LEFT, padx=5)
         self.upload_button['state'] = 'disabled'
-
         # --- Seção de Histórico ---
         history_frame = ttk.LabelFrame(main_frame, text="Histórico de Vídeos", padding="10")
         history_frame.pack(fill=tk.BOTH, expand=True, pady=5)
@@ -49,20 +48,31 @@ class VideoClientApp:
         self.history_tree = ttk.Treeview(history_frame, columns=cols, show='headings')
         for col in cols:
             self.history_tree.heading(col, text=col)
-        self.history_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        # NÃO FAÇA O .pack() AQUI AINDA
 
         # Scrollbar
         scrollbar = ttk.Scrollbar(history_frame, orient=tk.VERTICAL, command=self.history_tree.yview)
         self.history_tree.configure(yscroll=scrollbar.set)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        # NÃO FAÇA O .pack() AQUI AINDA
 
         # Botões de ação do histórico
         action_frame = ttk.Frame(history_frame)
-        action_frame.pack(side=tk.LEFT, fill=tk.Y, padx=10)
+        # NÃO FAÇA O .pack() AQUI AINDA
 
         ttk.Button(action_frame, text="Ver Original", command=lambda: self.play_video('original')).pack(pady=5)
         ttk.Button(action_frame, text="Ver Processado", command=lambda: self.play_video('processed')).pack(pady=5)
         ttk.Button(action_frame, text="Atualizar Histórico", command=self.refresh_history).pack(pady=20)
+
+        # --- ORDEM DE EMPACOTAMENTO CORRIGIDA ---
+
+        # 1. Empacota a barra de rolagem à direita
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # 2. Empacota a frame de botões à esquerda
+        action_frame.pack(side=tk.LEFT, fill=tk.Y, padx=10)
+
+        # 3. Empacota o Treeview por último para que ele ocupe todo o espaço restante
+        self.history_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # --- Inicialização ---
         self.refresh_history()
