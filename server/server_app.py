@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from flask import Flask, request, jsonify, render_template, send_from_directory
 from werkzeug.utils import secure_filename
-
+import socket
 import database
 import video_processor
 
@@ -21,8 +21,27 @@ database.init_db()
 # Rota para a GUI web do servidor
 @app.route('/')
 def index():
+    # CÓDIGO ANTERIOR:
+    # videos = database.get_all_videos()
+    # return render_template('index.html', videos=videos)
+
+    # NOVO CÓDIGO:
     videos = database.get_all_videos()
-    return render_template('index.html', videos=videos)
+
+    # Função para obter o IP da rede local
+    server_ip = '127.0.0.1'  # Fallback
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))  # Conecta a um IP externo para descobrir o IP local
+        server_ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        print("Não foi possível obter o IP da rede local, usando 127.0.0.1 como fallback.")
+
+    # A porta está definida no final do arquivo, vamos usar 5000 como padrão
+    server_port = 5000
+
+    return render_template('index.html', videos=videos, server_ip=server_ip, server_port=server_port)
 
 
 # Rota para servir os arquivos de mídia (vídeos, thumbnails)
@@ -34,11 +53,7 @@ def serve_media(filepath):
     # DEPOIS (NOVO CÓDIGO):
     # Primeiro, obtemos o objeto de resposta da função send_from_directory
     response = send_from_directory(app.config['MEDIA_ROOT'], filepath)
-
-    # Agora, modificamos o cabeçalho para instruir o navegador a exibir inline
     response.headers['Content-Disposition'] = 'inline'
-
-    # Retornamos a resposta modificada
     return response
 
 

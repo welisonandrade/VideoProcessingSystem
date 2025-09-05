@@ -6,6 +6,23 @@
     <style>
         body { font-family: sans-serif; background-color: #f4f4f9; color: #333; margin: 0; padding: 20px; }
         h1 { text-align: center; color: #444; }
+
+        /* --- ESTILO ADICIONADO --- */
+        .info-box {
+            background-color: #e7f3fe;
+            border-left: 6px solid #2196F3;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: center;
+            font-size: 1.1em;
+        }
+        .info-box strong {
+            color: #1a73e8;
+            font-family: monospace;
+            font-size: 1.2em;
+        }
+        /* --- FIM DO ESTILO ADICIONADO --- */
+
         .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
         .video-card { background: #fff; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); overflow: hidden; }
         .video-card img { width: 100%; height: auto; display: block; }
@@ -18,6 +35,10 @@
 </head>
 <body>
     <h1>Vídeos Processados no Servidor</h1>
+
+    <div class="info-box">
+        <p>Para conectar o cliente, use o endereço: <strong>{{ server_ip }}:{{ server_port }}</strong></p>
+    </div>
     <div class="grid-container">
         {% for video in videos %}
         <div class="video-card">
