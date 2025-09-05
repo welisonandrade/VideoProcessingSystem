@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Galeria de Vídeos</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: #e5e7eb;
+    }
+    header {
+      padding: 20px;
+      text-align: center;
+      background: #111827;
+      border-bottom: 1px solid #374151;
+    }
+    h1 { margin: 0; font-size: 20px; }
+    .container {
+      max-width: 1100px;
+      margin: 20px auto;
+      padding: 0 16px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: #1f2937;
+      border-radius: 12px;
+      overflow: hidden;
+      text-align: center;
+      border: 1px solid #374151;
+      transition: 0.2s;
+    }
+    .card:hover {
+      transform: translateY(-3px);
+      border-color: #22c55e;
+    }
+    .thumb {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+    }
+    .name {
+      display: block;
+      padding: 8px;
+      color: #9ca3af;
+      font-size: 14px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .empty {
+      color: #9ca3af;
+      text-align: center;
+      padding: 40px 0;
+      border: 1px dashed #374151;
+      border-radius: 12px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Galeria de Vídeos</h1>
+  </header>
+
+  <main class="container">
+    {% if videos and videos|length > 0 %}
+      <div class="grid">
+        {% for v in videos %}
+          <a class="card" href="{{ v.video_url }}">
+            <img class="thumb" src="{{ v.thumb_url }}" alt="Thumb de {{ v.filename }}">
+            <span class="name">{{ v.filename }}</span>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty">
+        Nenhum vídeo encontrado em <code>static/videos</code>.
+      </div>
+    {% endif %}
+  </main>
+</body>
+</html>
